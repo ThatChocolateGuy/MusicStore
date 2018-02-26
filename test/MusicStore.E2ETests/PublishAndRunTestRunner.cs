@@ -31,7 +31,7 @@ namespace E2ETests
                 var musicStoreDbName = DbUtils.GetUniqueName();
 
                 var deploymentParameters = new DeploymentParameters(
-                    Helpers.GetApplicationPath(applicationType), serverType, runtimeFlavor, runtimeArchitecture)
+                    Helpers.GetApplicationPath(), serverType, runtimeFlavor, runtimeArchitecture)
                 {
                     PublishApplicationBeforeDeployment = true,
                     PreservePublishedApplicationForDebugging = Helpers.PreservePublishedApplicationForDebugging,
@@ -80,59 +80,6 @@ namespace E2ETests
                             throw new Exception("publishExclude parameter values are not honored.");
                         }
                     }
-
-                    logger.LogInformation("Variation completed successfully.");
-                }
-            }
-        }
-
-        public async Task RunDeveloperTests(
-            ServerType serverType,
-            RuntimeFlavor runtimeFlavor,
-            ApplicationType applicationType,
-            RuntimeArchitecture runtimeArchitecture)
-        {
-            var testName = $"PublishAndRunTests_{serverType}_{runtimeFlavor}_{applicationType}";
-            using (StartLog(out var loggerFactory, testName))
-            {
-                var logger = loggerFactory.CreateLogger("Publish_And_Run_Development");
-                var musicStoreDbName = DbUtils.GetUniqueName();
-
-                var deploymentParameters = new DeploymentParameters(
-                    Helpers.GetApplicationPath(applicationType), serverType, runtimeFlavor, runtimeArchitecture)
-                {
-                    PublishApplicationBeforeDeployment = true,
-                    PreservePublishedApplicationForDebugging = Helpers.PreservePublishedApplicationForDebugging,
-                    TargetFramework = Helpers.GetTargetFramework(runtimeFlavor),
-                    Configuration = Helpers.GetCurrentBuildConfiguration(),
-                    EnvironmentName = "Development",
-                    ApplicationType = applicationType,
-                    UserAdditionalCleanup = parameters =>
-                    {
-                        DbUtils.DropDatabase(musicStoreDbName, logger);
-                    }
-                };
-
-                // Override the connection strings using environment based configuration
-                deploymentParameters.EnvironmentVariables
-                    .Add(new KeyValuePair<string, string>(
-                        MusicStoreConfig.ConnectionStringKey,
-                        DbUtils.CreateConnectionString(musicStoreDbName)));
-
-                using (var deployer = ApplicationDeployerFactory.Create(deploymentParameters, loggerFactory))
-                {
-                    var deploymentResult = await deployer.DeployAsync();
-                    var httpClientHandler = new HttpClientHandler { UseDefaultCredentials = true };
-                    var httpClient = deploymentResult.CreateHttpClient(httpClientHandler);
-
-                    // Request to base address and check if various parts of the body are rendered &
-                    // measure the cold startup time.
-                    // Add retry logic since tests are flaky on mono due to connection issues
-                    var validator = new Validator(httpClient, httpClientHandler, logger, deploymentResult);
-                    var response = await RetryHelper.RetryRequest(() => httpClient.GetAsync("PageThatThrows"), logger, cancellationToken: deploymentResult.HostShutdownToken);
-
-                    logger.LogInformation("Verifying developer exception page");
-                    await validator.VerifyDeveloperExceptionPage(response);
 
                     logger.LogInformation("Variation completed successfully.");
                 }
